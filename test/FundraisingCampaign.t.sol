@@ -49,7 +49,7 @@ contract FundraisingCampaignTest is Test {
         platformToken.mint(address(campaign), 10000e18);
     }
 
-    function test_Constructor() public {
+    function test_Constructor() public view {
         assertEq(campaign.owner(), owner);
         assertEq(campaign.creator(), creator);
         assertEq(campaign.tokenTargetMinAmount(), minAmount);
@@ -97,7 +97,6 @@ contract FundraisingCampaignTest is Test {
     }
 
     function test_ClaimFunds_Successful() public {
-        // Setup successful campaign
         vm.warp(startDate + 1);
 
         vm.startPrank(contributor1);
@@ -254,20 +253,18 @@ contract FundraisingCampaignTest is Test {
         vm.startPrank(contributor1);
         contributionToken.approve(address(campaign), maxAmount);
         campaign.contribute(maxAmount, contributionToken);
-        campaign.contribute(1, contributionToken); // Devrait échouer car dépasserait le max
+        campaign.contribute(1, contributionToken); // Should fail as max amount reached
         vm.stopPrank();
     }
 
     function test_Contribute_MultipleContributors() public {
         vm.warp(startDate + 1);
 
-        // Premier contributeur
         vm.startPrank(contributor1);
         contributionToken.approve(address(campaign), 300e18);
         campaign.contribute(300e18, contributionToken);
         vm.stopPrank();
 
-        // Deuxième contributeur
         vm.startPrank(contributor2);
         contributionToken.approve(address(campaign), 200e18);
         campaign.contribute(200e18, contributionToken);

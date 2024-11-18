@@ -3,81 +3,49 @@ pragma solidity 0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "./interface/IFundraisingFactory.sol";
 import "./FundraisingCampaign.sol";
 
 /**
  * @title FundraisingFactory
  * @dev Contract for managing fundraising campaign requests and deployments
  */
-contract FundraisingFactory {
+contract FundraisingFactory is IFundraisingFactory, Ownable {
     using SafeERC20 for IERC20;
 
     // State variables
-    address public owner;
-    IERC20 public immutable platformToken;
-    uint256 public requestCounter;
-
-    struct CampaignRequest {
-        address creator;
-        uint256 tokenTargetMinAmount;
-        uint256 tokenTargetMaxAmount;
-        uint256 startDate;
-        uint256 endDate;
-        RequestStatus status;
-    }
-
-    struct CampaignRequestDetails {
-        address creator;
-        uint256 tokenTargetMinAmount;
-        uint256 tokenTargetMaxAmount;
-        uint256 startDate;
-        uint256 endDate;
-        RequestStatus status;
-        address campaignAddress;
-    }
-
-    enum RequestStatus {
-        Pending,
-        Accepted,
-        Rejected
-    }
+    IERC20 public immutable override platformToken;
+    uint256 public override requestCounter;
 
     // Mappings
     mapping(uint256 => CampaignRequest) public requests;
     mapping(address => uint256[]) public creatorRequests;
     mapping(uint256 => address) public requestToCampaign;
 
-    // Events
-    event RequestSubmitted(
-        uint256 indexed requestId,
-        address indexed creator,
-        uint256 tokenTargetMinAmount,
-        uint256 tokenTargetMaxAmount,
-        uint256 startDate,
-        uint256 endDate
-    );
-    event RequestReviewed(uint256 indexed requestId, bool approved);
-    event CampaignCreated(uint256 indexed requestId, address indexed campaignAddress);
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-
-    // Modifiers
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Only owner can call this function");
-        _;
-    }
-
-    constructor(address _platformToken) {
+    /**
+     * @dev Constructor sets the platform token address
+     * @param _platformToken Address of the platform token
+     */
+    constructor(address _platformToken) Ownable(msg.sender) {
         require(_platformToken != address(0), "Invalid token address");
-        owner = msg.sender;
         platformToken = IERC20(_platformToken);
     }
 
+    /**
+     * @dev Submit a new campaign request
+     * @param _tokenTargetMinAmount Minimum amount of tokens to raise
+     * @param _tokenTargetMaxAmount Maximum amount of tokens to raise
+     * @param _startDate Start date of the campaign
+     * @param _endDate End date of the campaign
+     * @return requestId ID of the new request
+     */
     function submitCampaignRequest(
         uint256 _tokenTargetMinAmount,
         uint256 _tokenTargetMaxAmount,
         uint256 _startDate,
         uint256 _endDate
-    ) external returns (uint256) {
+    ) external override returns (uint256) {
         require(_tokenTargetMaxAmount > _tokenTargetMinAmount, "Max amount must be greater than min");
         require(_startDate > block.timestamp, "Start date must be in the future");
         require(_endDate > _startDate, "End date must be after start date");
@@ -100,7 +68,12 @@ contract FundraisingFactory {
         return requestId;
     }
 
-    function reviewCampaignRequest(uint256 _requestId, bool _approved) external onlyOwner {
+    /**
+     * @dev Review a campaign request and create a new campaign if approved
+     * @param _requestId ID of the request to review
+     * @param _approved Boolean indicating whether the request is approved
+     */
+    function reviewCampaignRequest(uint256 _requestId, bool _approved) external override onlyOwner {
         require(_requestId < requestCounter, "Invalid request ID");
         CampaignRequest storage request = requests[_requestId];
         require(request.status == RequestStatus.Pending, "Request not pending");
@@ -126,7 +99,17 @@ contract FundraisingFactory {
         emit RequestReviewed(_requestId, _approved);
     }
 
-    function getCampaignRequest(uint256 _requestId) external view returns (CampaignRequestDetails memory details) {
+    /**
+     * @dev Get details of a campaign request
+     * @param _requestId ID of the request
+     * @return details Campaign request details
+     */
+    function getCampaignRequest(uint256 _requestId)
+        external
+        view
+        override
+        returns (CampaignRequestDetails memory details)
+    {
         require(_requestId < requestCounter, "Invalid request ID");
         CampaignRequest storage request = requests[_requestId];
 
@@ -141,13 +124,12 @@ contract FundraisingFactory {
         });
     }
 
-    function getCreatorRequests(address _creator) external view returns (uint256[] memory) {
+    /**
+     * @dev Get all campaign requests submitted by a creator
+     * @param _creator Address of the creator
+     * @return requestIds Array of request IDs
+     */
+    function getCreatorRequests(address _creator) external view override returns (uint256[] memory) {
         return creatorRequests[_creator];
-    }
-
-    function transferOwnership(address newOwner) external onlyOwner {
-        require(newOwner != address(0), "New owner is the zero address");
-        emit OwnershipTransferred(owner, newOwner);
-        owner = newOwner;
     }
 }

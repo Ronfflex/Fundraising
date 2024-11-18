@@ -4,32 +4,27 @@ pragma solidity 0.8.28;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "./interface/IFundraisingCampaign.sol";
 
 /**
  * @title FundraisingCampaign
  * @dev Contract for managing individual fundraising campaigns
  */
-contract FundraisingCampaign is ReentrancyGuard {
+contract FundraisingCampaign is IFundraisingCampaign, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     // State variables
-    address public immutable owner;
-    address public immutable creator;
-    uint256 public immutable tokenTargetMinAmount;
-    uint256 public immutable tokenTargetMaxAmount;
-    uint256 public immutable startDate;
-    uint256 public immutable endDate;
-    IERC20 public immutable platformToken;
+    address public override owner;
+    address public override creator;
+    uint256 public override tokenTargetMinAmount;
+    uint256 public override tokenTargetMaxAmount;
+    uint256 public override startDate;
+    uint256 public override endDate;
+    IERC20 public override platformToken;
 
-    uint256 public totalCollected;
-    bool public claimed;
-    mapping(address => uint256) public contributions;
-
-    // Events
-    event ContributionReceived(address indexed contributor, address indexed token, uint256 amount, uint256 platformTokenAmount);
-    event FundsClaimed(address indexed creator, uint256 amount);
-    event RefundProcessed(address indexed contributor, uint256 amount);
-    event CampaignEnded(bool successful, uint256 totalCollected);
+    uint256 public override totalCollected;
+    bool public override claimed;
+    mapping(address => uint256) public override contributions;
 
     /**
      * @dev Constructor sets all campaign parameters
@@ -61,7 +56,7 @@ contract FundraisingCampaign is ReentrancyGuard {
      * @param _amount Amount of tokens to contribute
      * @param _contributionToken ERC20 token used for contribution
      */
-    function contribute(uint256 _amount, IERC20 _contributionToken) external nonReentrant {
+    function contribute(uint256 _amount, IERC20 _contributionToken) external override nonReentrant {
         require(block.timestamp >= startDate, "Campaign not started");
         require(block.timestamp <= endDate, "Campaign ended");
         require(totalCollected + _amount <= tokenTargetMaxAmount, "Exceeds maximum target");
@@ -81,7 +76,7 @@ contract FundraisingCampaign is ReentrancyGuard {
     /**
      * @dev Allows creator to claim funds if campaign is successful
      */
-    function claimFunds() external nonReentrant {
+    function claimFunds() external override nonReentrant {
         require(msg.sender == creator, "Only creator can claim");
         require(!claimed, "Already claimed");
         require(block.timestamp > endDate, "Campaign not ended");
@@ -98,13 +93,13 @@ contract FundraisingCampaign is ReentrancyGuard {
     /**
      * @dev Allows contributors to get refund if campaign fails
      */
-    function refund() external nonReentrant {
+    function refund() external override nonReentrant {
         require(block.timestamp > endDate, "Campaign not ended");
         require(totalCollected < tokenTargetMinAmount, "Campaign successful");
-        
+
         uint256 amount = contributions[msg.sender];
         require(amount > 0, "No contribution found");
-        
+
         // Update state before transfer
         contributions[msg.sender] = 0;
 
@@ -119,6 +114,7 @@ contract FundraisingCampaign is ReentrancyGuard {
     function getCampaignDetails()
         external
         view
+        override
         returns (
             address _creator,
             uint256 _tokenTargetMinAmount,

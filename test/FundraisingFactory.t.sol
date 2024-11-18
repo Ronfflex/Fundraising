@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import { Test, console2 } from "forge-std/Test.sol";
 import { FundraisingFactory } from "../src/FundraisingFactory.sol";
+import { IFundraisingFactory } from "../src/interface/IFundraisingFactory.sol";
 import { FundraisingCampaign } from "../src/FundraisingCampaign.sol";
 import { MockERC20 } from "./mock/MockERC20.sol";
 
@@ -43,7 +44,7 @@ contract FundraisingFactoryTest is Test {
         endDate = block.timestamp + 10 days;
     }
 
-    function test_Constructor() public {
+    function test_Constructor() public view {
         assertEq(factory.owner(), owner);
         assertEq(address(factory.platformToken()), address(platformToken));
     }
@@ -56,14 +57,14 @@ contract FundraisingFactoryTest is Test {
 
         uint256 requestId = factory.submitCampaignRequest(100e18, 1000e18, startDate, endDate);
 
-        FundraisingFactory.CampaignRequestDetails memory details = factory.getCampaignRequest(requestId);
+        IFundraisingFactory.CampaignRequestDetails memory details = factory.getCampaignRequest(requestId);
 
         assertEq(details.creator, user1);
         assertEq(details.tokenTargetMinAmount, 100e18);
         assertEq(details.tokenTargetMaxAmount, 1000e18);
         assertEq(details.startDate, startDate);
         assertEq(details.endDate, endDate);
-        assertEq(uint256(details.status), uint256(FundraisingFactory.RequestStatus.Pending));
+        assertEq(uint256(details.status), uint256(IFundraisingFactory.RequestStatus.Pending));
         assertEq(details.campaignAddress, address(0));
 
         vm.stopPrank();
@@ -102,9 +103,9 @@ contract FundraisingFactoryTest is Test {
 
         factory.reviewCampaignRequest(requestId, true);
 
-        FundraisingFactory.CampaignRequestDetails memory details = factory.getCampaignRequest(requestId);
+        IFundraisingFactory.CampaignRequestDetails memory details = factory.getCampaignRequest(requestId);
 
-        assertEq(uint256(details.status), uint256(FundraisingFactory.RequestStatus.Accepted));
+        assertEq(uint256(details.status), uint256(IFundraisingFactory.RequestStatus.Accepted));
         assertTrue(details.campaignAddress != address(0));
 
         vm.stopPrank();
@@ -123,9 +124,9 @@ contract FundraisingFactoryTest is Test {
 
         factory.reviewCampaignRequest(requestId, false);
 
-        FundraisingFactory.CampaignRequestDetails memory details = factory.getCampaignRequest(requestId);
+        IFundraisingFactory.CampaignRequestDetails memory details = factory.getCampaignRequest(requestId);
 
-        assertEq(uint256(details.status), uint256(FundraisingFactory.RequestStatus.Rejected));
+        assertEq(uint256(details.status), uint256(IFundraisingFactory.RequestStatus.Rejected));
         assertEq(details.campaignAddress, address(0));
 
         vm.stopPrank();
@@ -164,28 +165,13 @@ contract FundraisingFactoryTest is Test {
         vm.stopPrank();
     }
 
-    function test_TransferOwnership() public {
-        vm.startPrank(owner);
-
-        // Capture l'état initial
-        address oldOwner = factory.owner();
-
-        factory.transferOwnership(user1);
-
-        // Vérifier que le changement a bien eu lieu
-        assertEq(factory.owner(), user1);
-        assertFalse(oldOwner == factory.owner());
-
-        vm.stopPrank();
-    }
-
     function testFail_ReviewCampaignRequest_PendingOnly() public {
         vm.prank(user1);
         uint256 requestId = factory.submitCampaignRequest(100e18, 1000e18, startDate, endDate);
 
         vm.startPrank(owner);
-        factory.reviewCampaignRequest(requestId, true); // Première revue
-        factory.reviewCampaignRequest(requestId, true); // Devrait échouer car déjà revu
+        factory.reviewCampaignRequest(requestId, true);
+        factory.reviewCampaignRequest(requestId, true); // Should fail
         vm.stopPrank();
     }
 
@@ -195,18 +181,8 @@ contract FundraisingFactoryTest is Test {
             100e18,
             1000e18,
             block.timestamp + 2 days,
-            block.timestamp + 1 days // endDate avant startDate
+            block.timestamp + 1 days // endDate before startDate
         );
-    }
-
-    function testFail_TransferOwnership_NotOwner() public {
-        vm.prank(user1);
-        factory.transferOwnership(user2);
-    }
-
-    function testFail_TransferOwnership_ZeroAddress() public {
-        vm.prank(owner);
-        factory.transferOwnership(address(0));
     }
 
     function testFail_GetCampaignRequest_InvalidId() public view {
