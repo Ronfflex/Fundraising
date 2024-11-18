@@ -44,10 +44,8 @@ contract FundraisingCampaignTest is Test {
         campaign = new FundraisingCampaign(creator, minAmount, maxAmount, startDate, endDate, address(platformToken));
         vm.stopPrank();
 
-        // Setup contributor balances
         contributionToken.mint(contributor1, 1000e18);
         contributionToken.mint(contributor2, 1000e18);
-        // Mint platform tokens to campaign contract to simulate exchange
         platformToken.mint(address(campaign), 10000e18);
     }
 
@@ -206,5 +204,132 @@ contract FundraisingCampaignTest is Test {
         assertFalse(_claimed);
         assertTrue(_isActive);
         assertFalse(_isSuccessful);
+    }
+
+    function testFail_Constructor_ZeroCreator() public {
+        new FundraisingCampaign(address(0), minAmount, maxAmount, startDate, endDate, address(platformToken));
+    }
+
+    function testFail_Constructor_ZeroToken() public {
+        new FundraisingCampaign(creator, minAmount, maxAmount, startDate, endDate, address(0));
+    }
+
+    function testFail_Constructor_InvalidDates() public {
+        new FundraisingCampaign(
+            creator,
+            minAmount,
+            maxAmount,
+            endDate, // startDate > endDate
+            startDate,
+            address(platformToken)
+        );
+    }
+
+    function testFail_Constructor_InvalidAmounts() public {
+        new FundraisingCampaign(
+            creator,
+            maxAmount, // minAmount > maxAmount
+            minAmount,
+            startDate,
+            endDate,
+            address(platformToken)
+        );
+    }
+
+    function testFail_Contribute_ZeroAmount() public {
+        vm.warp(startDate + 1);
+        vm.prank(contributor1);
+        campaign.contribute(0, contributionToken);
+    }
+
+    function testFail_Contribute_ZeroToken() public {
+        vm.warp(startDate + 1);
+        vm.prank(contributor1);
+        campaign.contribute(100e18, MockERC20(address(0)));
+    }
+
+    function testFail_Contribute_ExactlyMaxAmount() public {
+        vm.warp(startDate + 1);
+
+        vm.startPrank(contributor1);
+        contributionToken.approve(address(campaign), maxAmount);
+        campaign.contribute(maxAmount, contributionToken);
+        campaign.contribute(1, contributionToken); // Devrait échouer car dépasserait le max
+        vm.stopPrank();
+    }
+
+    function test_Contribute_MultipleContributors() public {
+        vm.warp(startDate + 1);
+
+        // Premier contributeur
+        vm.startPrank(contributor1);
+        contributionToken.approve(address(campaign), 300e18);
+        campaign.contribute(300e18, contributionToken);
+        vm.stopPrank();
+
+        // Deuxième contributeur
+        vm.startPrank(contributor2);
+        contributionToken.approve(address(campaign), 200e18);
+        campaign.contribute(200e18, contributionToken);
+        vm.stopPrank();
+
+        assertEq(campaign.totalCollected(), 500e18);
+        assertEq(campaign.contributions(contributor1), 300e18);
+        assertEq(campaign.contributions(contributor2), 200e18);
+    }
+
+    function testFail_ClaimFunds_NotCreator() public {
+        vm.warp(startDate + 1);
+
+        vm.startPrank(contributor1);
+        contributionToken.approve(address(campaign), 500e18);
+        campaign.contribute(500e18, contributionToken);
+        vm.stopPrank();
+
+        vm.warp(endDate + 1);
+
+        vm.prank(contributor1); // Not creator
+        campaign.claimFunds();
+    }
+
+    function testFail_ClaimFunds_AlreadyClaimed() public {
+        vm.warp(startDate + 1);
+
+        vm.startPrank(contributor1);
+        contributionToken.approve(address(campaign), 500e18);
+        campaign.contribute(500e18, contributionToken);
+        vm.stopPrank();
+
+        vm.warp(endDate + 1);
+
+        vm.startPrank(creator);
+        campaign.claimFunds();
+        campaign.claimFunds(); // Should fail
+        vm.stopPrank();
+    }
+
+    function testFail_Refund_NotContributed() public {
+        vm.warp(startDate + 1);
+
+        vm.startPrank(contributor1);
+        contributionToken.approve(address(campaign), 50e18);
+        campaign.contribute(50e18, contributionToken);
+        vm.stopPrank();
+
+        vm.warp(endDate + 1);
+
+        vm.prank(contributor2); // Hasn't contributed
+        campaign.refund();
+    }
+
+    function testFail_Refund_CampaignNotEnded() public {
+        vm.warp(startDate + 1);
+
+        vm.startPrank(contributor1);
+        contributionToken.approve(address(campaign), 50e18);
+        campaign.contribute(50e18, contributionToken);
+
+        campaign.refund(); // Campaign still active
+        vm.stopPrank();
     }
 }

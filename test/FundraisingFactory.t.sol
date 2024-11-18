@@ -163,4 +163,62 @@ contract FundraisingFactoryTest is Test {
 
         vm.stopPrank();
     }
+
+    function test_TransferOwnership() public {
+        vm.startPrank(owner);
+
+        // Capture l'état initial
+        address oldOwner = factory.owner();
+
+        factory.transferOwnership(user1);
+
+        // Vérifier que le changement a bien eu lieu
+        assertEq(factory.owner(), user1);
+        assertFalse(oldOwner == factory.owner());
+
+        vm.stopPrank();
+    }
+
+    function testFail_ReviewCampaignRequest_PendingOnly() public {
+        vm.prank(user1);
+        uint256 requestId = factory.submitCampaignRequest(100e18, 1000e18, startDate, endDate);
+
+        vm.startPrank(owner);
+        factory.reviewCampaignRequest(requestId, true); // Première revue
+        factory.reviewCampaignRequest(requestId, true); // Devrait échouer car déjà revu
+        vm.stopPrank();
+    }
+
+    function testFail_SubmitCampaignRequest_EndDateBeforeStart() public {
+        vm.prank(user1);
+        factory.submitCampaignRequest(
+            100e18,
+            1000e18,
+            block.timestamp + 2 days,
+            block.timestamp + 1 days // endDate avant startDate
+        );
+    }
+
+    function testFail_TransferOwnership_NotOwner() public {
+        vm.prank(user1);
+        factory.transferOwnership(user2);
+    }
+
+    function testFail_TransferOwnership_ZeroAddress() public {
+        vm.prank(owner);
+        factory.transferOwnership(address(0));
+    }
+
+    function testFail_GetCampaignRequest_InvalidId() public view {
+        factory.getCampaignRequest(999);
+    }
+
+    function testFail_ReviewCampaignRequest_InvalidId() public {
+        vm.prank(owner);
+        factory.reviewCampaignRequest(999, true);
+    }
+
+    function testFail_Constructor_ZeroAddress() public {
+        new FundraisingFactory(address(0));
+    }
 }
